@@ -30,6 +30,8 @@
     connected: false,
     stopped: false,
     permissionsReady: false,
+    screenshotScopeChecked: false,
+    screenshotScopeGranted: false,
     reconnectTimer: null,
     eventSource: null,
     lastStatus: "idle",
@@ -71,15 +73,11 @@
       throw new Error("window.agent.requestPermissions() is unavailable.");
     }
 
-    const scopes = [
-      "model:prompt",
-      "browser:activeTab.read",
-      "browser:activeTab.screenshot",
-    ];
+    const scopes = ["model:prompt"];
 
     const result = await window.agent.requestPermissions({
       scopes,
-      reason: "Remote gesture helper needs page read + screenshot + summary permissions.",
+      reason: "Remote gesture helper needs model prompt permission.",
     });
 
     const denied = scopes.filter((scope) => !isPermissionGranted(result?.scopes?.[scope]));
@@ -88,6 +86,57 @@
     }
 
     state.permissionsReady = true;
+  }
+
+  async function ensureOptionalScreenshotScope() {
+    if (state.screenshotScopeChecked) {
+      return state.screenshotScopeGranted;
+    }
+
+    state.screenshotScopeChecked = true;
+    state.screenshotScopeGranted = false;
+
+    if (typeof window.agent?.requestPermissions !== "function") {
+      return false;
+    }
+
+    try {
+      const result = await window.agent.requestPermissions({
+        scopes: ["browser:activeTab.screenshot"],
+        reason: "Optional screenshot for remote helper context.",
+      });
+      state.screenshotScopeGranted = isPermissionGranted(result?.scopes?.["browser:activeTab.screenshot"]);
+    } catch {
+      state.screenshotScopeGranted = false;
+    }
+
+    return state.screenshotScopeGranted;
+  }
+
+  function collapseWhitespace(text) {
+    return String(text || "").replace(/\s+/g, " ").trim();
+  }
+
+  function extractLocalReadableText() {
+    const candidates = [
+      document.querySelector("article"),
+      document.querySelector("main"),
+      document.querySelector("[role='main']"),
+      document.body,
+    ];
+
+    for (const node of candidates) {
+      if (!node) {
+        continue;
+      }
+
+      const value = collapseWhitespace(node.innerText || node.textContent || "");
+      if (value.length >= 120) {
+        return value.slice(0, 50_000);
+      }
+    }
+
+    return "";
   }
 
   async function postResult(commandId, result) {
@@ -123,24 +172,28 @@
     if (typeof window.ai?.createTextSession !== "function") {
       throw new Error("window.ai.createTextSession() is unavailable.");
     }
-    if (typeof window.agent?.browser?.activeTab?.readability !== "function") {
-      throw new Error("window.agent.browser.activeTab.readability() is unavailable.");
-    }
-
-    const page = await window.agent.browser.activeTab.readability();
-    const pageTitle = String(page?.title || document.title || "Untitled page");
-    const pageText = String(page?.text || page?.content || "").trim();
-    const targetUrl = String(page?.url || window.location.href || "");
+    const pageTitle = String(document.title || "Untitled page");
+    const targetUrl = String(window.location.href || "");
+    const pageText = extractLocalReadableText();
 
     let screenshot = null;
     let degraded = false;
     let degradeReason = "";
-    if (typeof window.agent?.browser?.activeTab?.screenshot === "function") {
-      try {
-        screenshot = await window.agent.browser.activeTab.screenshot();
-      } catch (error) {
+    const screenshotScopeGranted = await ensureOptionalScreenshotScope();
+    if (!screenshotScopeGranted) {
+      degraded = true;
+      degradeReason = "Screenshot permission not granted.";
+    } else if (typeof window.agent?.browser?.activeTab?.screenshot === "function") {
+      if (document.visibilityState !== "visible") {
         degraded = true;
-        degradeReason = error?.message || "Screenshot capture failed.";
+        degradeReason = "Target tab is not visible; screenshot skipped.";
+      } else {
+        try {
+          screenshot = await window.agent.browser.activeTab.screenshot();
+        } catch (error) {
+          degraded = true;
+          degradeReason = error?.message || "Screenshot capture failed.";
+        }
       }
     } else {
       degraded = true;
@@ -197,6 +250,7 @@
         screenshotChars,
         degraded,
         degradeReason: degraded ? degradeReason : "",
+        contextSource: "dom",
       },
     };
   }
