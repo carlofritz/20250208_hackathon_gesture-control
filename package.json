@@ -1,0 +1,26 @@
+{
+  "name": "gesture-control-elevenlabs-bridge",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs",
+    "test": "npm run test:unit",
+    "test:smoke": "npm run test:unit",
+    "test:unit": "node tools/run-vitest.mjs run",
+    "test:e2e": "node tools/run-playwright.mjs test",
+    "test:e2e:smoke": "node tools/run-playwright.mjs test tests/e2e/smoke.spec.ts",
+    "up": "node tools/dev-launcher.mjs up",
+    "down": "node tools/dev-launcher.mjs down",
+    "status": "node tools/dev-launcher.mjs status",
+    "logs": "node tools/dev-launcher.mjs logs",
+    "agent:create": "node tools/elevenlabs-agent-create.mjs",
+    "agent:signed-url": "node tools/elevenlabs-agent-signed-url.mjs",
+    "tts": "node tools/elevenlabs-tts-file.mjs",
+    "stt": "node tools/elevenlabs-stt-file.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "vitest": "^4.0.18"
+  }
+}

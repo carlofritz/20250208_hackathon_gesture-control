@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gesture Trigger Control</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="panel topbar">
+        <div>
+          <h1>Gesture Trigger Control</h1>
+          <p class="subhead">Vanilla + MediaPipe tracking with user-trainable pose classes.</p>
+        </div>
+        <div class="button-row top-actions">
+          <button id="startBtn" class="btn btn-primary">Start Camera</button>
+          <button id="stopBtn" class="btn" disabled>Stop</button>
+        </div>
+      </header>
+
+      <section class="panel stage-panel">
+        <div class="safety-bar">
+          <span class="safety-title">Execution Safety</span>
+          <label class="safety-field">
+            <span>Mode</span>
+            <select id="safetyModeSelect" class="select">
+              <option value="confirm_each">Confirm each</option>
+              <option value="cooldown">Cooldown</option>
+            </select>
+          </label>
+          <div id="safetyCooldownGroup" class="safety-field">
+            <span>Cooldown</span>
+            <div class="range-row">
+              <input id="cooldownRange" type="range" min="0" max="5000" step="100" />
+              <output id="cooldownValue" class="metric">2.0s</output>
+            </div>
+          </div>
+          <label id="safetyArmGroup" class="toggle-row">
+            <input id="armCooldownToggle" type="checkbox" />
+            Arm cooldown mode
+          </label>
+        </div>
+
+        <div class="stage" id="stage">
+          <video id="camera" autoplay playsinline muted></video>
+          <canvas id="overlay"></canvas>
+          <div id="poseIndicator" class="pose-indicator pose-none" title="No pose match">-</div>
+          <div id="status" class="status">Idle</div>
+        </div>
+        <p class="readout"><strong>Current gestures:</strong> <span id="gestureSummary">none</span></p>
+      </section>
+
+      <section class="panel pose-panel">
+        <h2>Pose Capture</h2>
+        <p class="capture-hint">
+          Default gesture slots are fixed: <strong>0=thumbs_up, 1=palm, 2=peace</strong>. Use
+          <strong>Settings</strong> for guided recording and optional renaming.
+        </p>
+
+        <canvas id="posePreview" class="pose-preview" width="220" height="140"></canvas>
+        <div class="button-row">
+          <button id="clearPosesBtn" class="btn">Clear Poses</button>
+          <button id="copyPosesBtn" class="btn">Copy Hardcoded JSON</button>
+          <button id="openDefaultsBtn" class="btn">Settings</button>
+        </div>
+
+        <h3>Saved Poses</h3>
+        <div id="poseSlots" class="pose-slots"></div>
+      </section>
+
+      <section class="panel tools-panel">
+        <details class="fold" open>
+          <summary>Harbor Integration</summary>
+          <p id="harborBridgeStatus" class="modal-note">Not connected. Click "Check Harbor APIs" to verify.</p>
+
+          <div class="modal-grid">
+            <label class="modal-field">
+              <span>Quick preset</span>
+              <select id="integrationPresetSelect" class="select">
+                <option value="hackathon_combo">Hackathon combo (Recommended)</option>
+                <option value="remote_news_demo">Remote news demo</option>
+                <option value="fs_nested_recommended">Filesystem nested workflow (Recommended)</option>
+                <option value="fs_only">Filesystem only</option>
+                <option value="legacy_demo">Legacy demo</option>
+              </select>
+            </label>
+          <div class="button-row modal-restore-actions">
+              <button id="applyIntegrationPresetBtn" class="btn">Apply Preset</button>
+            </div>
+          </div>
+
+          <div class="modal-grid">
+            <label class="modal-field">
+              <span>Remote helper session</span>
+              <input id="remoteBridgeSessionInput" class="select" type="text" value="default" maxlength="64" />
+            </label>
+            <div class="button-row modal-restore-actions">
+              <button id="copyTargetHelperSnippetBtn" class="btn">Copy Target Helper Snippet</button>
+            </div>
+          </div>
+          <p class="modal-note">
+            Open a target site tab (e.g. news), run the copied snippet in DevTools Console, then map a pose to
+            <strong>Remote tab summarize</strong>.
+          </p>
+
+          <details class="fold">
+            <summary>Advanced Mapping</summary>
+            <div class="mapping-grid">
+              <label class="modal-field">
+                <span id="poseMapLabel0">Pose 0</span>
+                <select id="poseMapSelect0" class="select"></select>
+              </label>
+              <label class="modal-field">
+                <span id="poseMapLabel1">Pose 1</span>
+                <select id="poseMapSelect1" class="select"></select>
+              </label>
+              <label class="modal-field">
+                <span id="poseMapLabel2">Pose 2</span>
+                <select id="poseMapSelect2" class="select"></select>
+              </label>
+            </div>
+
+            <p class="modal-note"><strong>Modifier route</strong> (secondary hand gesture can switch action):</p>
+
+            <div class="modal-grid">
+              <label class="toggle-row">
+                <input id="modifierEnabledToggle" type="checkbox" />
+                Enable modifier routing
+              </label>
+              <div class="modal-field">
+                <span>Per-pose meta</span>
+                <p class="modal-note">Set one meta gesture per pose. If detected, the pose runs its alt action.</p>
+              </div>
+            </div>
+
+            <div class="mapping-grid">
+              <label class="modal-field">
+                <span id="poseMetaGestureLabel0">Pose 0 meta</span>
+                <select id="poseMetaGestureSelect0" class="select"></select>
+              </label>
+              <label class="modal-field">
+                <span id="poseMetaGestureLabel1">Pose 1 meta</span>
+                <select id="poseMetaGestureSelect1" class="select"></select>
+              </label>
+              <label class="modal-field">
+                <span id="poseMetaGestureLabel2">Pose 2 meta</span>
+                <select id="poseMetaGestureSelect2" class="select"></select>
+              </label>
+            </div>
+
+            <div class="mapping-grid">
+              <label class="modal-field">
+                <span id="poseAltMapLabel0">Pose 0 alt (+1)</span>
+                <select id="poseAltMapSelect0" class="select"></select>
+              </label>
+              <label class="modal-field">
+                <span id="poseAltMapLabel1">Pose 1 alt (+1)</span>
+                <select id="poseAltMapSelect1" class="select"></select>
+              </label>
+              <label class="modal-field">
+                <span id="poseAltMapLabel2">Pose 2 alt (+1)</span>
+                <select id="poseAltMapSelect2" class="select"></select>
+              </label>
+            </div>
+          </details>
+
+          <div class="modal-grid">
+            <label class="modal-field">
+              <span>Provider</span>
+              <input id="harborProviderInput" class="select" type="text" value="ollama" maxlength="40" />
+            </label>
+            <label class="modal-field">
+              <span>Model</span>
+              <input id="harborModelInput" class="select" type="text" value="llama3.2" maxlength="64" />
+            </label>
+          </div>
+
+          <div class="button-row">
+            <button id="usePhiFallbackBtn" class="btn">Use Phi Fallback</button>
+          </div>
+
+          <label class="modal-field">
+            <span>Ask-model prompt template</span>
+            <textarea id="askPromptTemplate" class="text-input" rows="3"></textarea>
+          </label>
+
+          <div class="modal-grid">
+            <label class="modal-field">
+              <span>Research source count</span>
+              <input id="researchSourceCountInput" class="select" type="number" min="1" max="8" step="1" />
+            </label>
+            <label class="toggle-row">
+              <input id="researchCloseTabsToggle" type="checkbox" />
+              Close opened research tabs after run
+            </label>
+          </div>
+
+          <label class="modal-field">
+            <span>Research query template</span>
+            <textarea id="researchQueryTemplate" class="text-input" rows="2"></textarea>
+          </label>
+
+          <div class="modal-grid">
+            <label class="modal-field">
+              <span>ElevenLabs Agent ID (optional)</span>
+              <input id="elevenLabsAgentIdInput" class="select" type="text" maxlength="128" />
+            </label>
+            <label class="modal-field">
+              <span>ElevenLabs Voice ID (optional)</span>
+              <input id="elevenLabsVoiceIdInput" class="select" type="text" maxlength="128" />
+            </label>
+          </div>
+
+          <div class="button-row">
+            <button id="saveIntegrationBtn" class="btn">Save Integration</button>
+            <button id="checkHarborBtn" class="btn">Check Harbor APIs</button>
+          </div>
+
+          <p id="harborLastResult" class="modal-note">No action result yet.</p>
+        </details>
+
+        <details class="fold" open>
+          <summary>Trigger Rules</summary>
+          <ul id="triggerList" class="trigger-list"></ul>
+        </details>
+
+        <details class="fold">
+          <summary>Runtime Log</summary>
+          <ol id="logList" class="log-list"></ol>
+        </details>
+      </section>
+    </main>
+
+    <div id="defaultsModal" class="modal-shell hidden" aria-hidden="true">
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="defaultsTitle">
+        <h2 id="defaultsTitle">Pose Setup</h2>
+        <p class="capture-hint">
+          Guided mode: <kbd>Enter</kbd> starts/captures, <kbd>Tab</kbd> goes to the next pose, <kbd>Shift</kbd> +
+          <kbd>Tab</kbd> goes back.
+        </p>
+
+        <div class="preview-wrap">
+          <canvas id="defaultsPreview" class="pose-preview" width="260" height="160"></canvas>
+          <div id="defaultsCountdown" class="countdown-overlay hidden" aria-live="polite"></div>
+        </div>
+
+        <div class="modal-grid">
+          <label class="modal-field">
+            <span>Current step</span>
+            <output id="defaultsStep" class="metric">Pose 1 / 3</output>
+          </label>
+
+          <label class="modal-field">
+            <span>Recorded samples</span>
+            <output id="defaultsSampleCount" class="metric">0</output>
+          </label>
+        </div>
+
+        <label class="modal-field">
+          <span>Pose name (optional)</span>
+          <input
+            id="defaultsLabelInput"
+            class="select"
+            type="text"
+            maxlength="32"
+            placeholder="Type a custom label"
+          />
+        </label>
+
+        <div class="modal-grid">
+          <label class="modal-field">
+            <span>Restore defaults snapshot</span>
+            <select id="defaultsSnapshotSelect" class="select"></select>
+          </label>
+          <div class="button-row modal-restore-actions">
+            <button id="defaultsRestoreSnapshotBtn" class="btn">Restore Snapshot</button>
+          </div>
+        </div>
+
+        <p class="modal-note">Snapshots include pose names plus captured MediaPipe keypoints.</p>
+        <p id="defaultsSlotHint" class="modal-note">Selected slot 0.</p>
+        <p id="defaultsRecordStatus" class="modal-note">Idle.</p>
+
+        <div class="button-row">
+          <button id="defaultsActionBtn" class="btn btn-primary">Start Capture (Enter)</button>
+          <button id="closeDefaultsBtn" class="btn">Close</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>

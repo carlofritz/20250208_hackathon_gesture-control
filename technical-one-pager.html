@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hackathon Technical Summary</title>
+  <style>
+    @page { size: Letter; margin: 0.75in; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #111;
+      line-height: 1.35;
+      font-size: 12pt;
+      margin: 0;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
+    }
+    h1 { font-size: 20pt; margin: 0 0 10px 0; }
+    h2 { font-size: 13pt; margin: 14px 0 6px; }
+    p { margin: 0 0 6px; }
+    ul { margin: 6px 0 8px 20px; }
+    li { margin: 3px 0; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 10.5pt;
+      background: #f3f4f6;
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Hackathon Technical Summary</h1>
+
+  <h2>What We Added</h2>
+  <ul>
+    <li>Browser-side gesture control using <b>MediaPipe Hand Landmarker</b> (GPU with CPU fallback).</li>
+    <li>Three pose slots (<code>0/1/2</code>) mapped to Harbor actions, plus secondary-hand modifier gestures for alternate routes.</li>
+    <li>A Harbor bridge that converts pose events into <code>window.agent</code> / <code>window.ai</code> actions with scoped permission checks.</li>
+    <li>Local model routing with <b><code>ollama/llama3.2</code> default</b> and quick fallback to <b><code>ollama/phi3.5</code></b>.</li>
+    <li>Voice integration through local ElevenLabs endpoints for <b>TTS</b>, <b>STT</b>, and <b>live conversation</b>.</li>
+  </ul>
+
+  <h2>Harbor Integration (Technical)</h2>
+  <ul>
+    <li>New event pipeline: <code>pose match -&gt; trigger engine -&gt; harbor:gesture-trigger -&gt; HarborSdkBridge</code>.</li>
+    <li>Added action catalog + per-pose config for read/summarize, screenshot analysis, research workflows, MCP tools, and voice actions.</li>
+    <li>Added runtime capability checks and safety gating (<code>confirm_each</code> or <code>cooldown + arm</code>).</li>
+  </ul>
+
+  <h2>Multimodal + Voice Path</h2>
+  <ul>
+    <li>Screenshot actions capture active-tab images and emit screenshot events for downstream consumers.</li>
+    <li>Summary path remains reliable on text-only models by combining screenshot metadata with page readability text.</li>
+    <li>Local ElevenLabs proxy (<code>server.mjs</code>) exposes:
+      <code>POST /api/elevenlabs/tts</code>,
+      <code>POST /api/elevenlabs/stt</code>,
+      <code>POST /api/elevenlabs/agent/create</code>,
+      <code>GET /api/elevenlabs/agent/signed-url</code>,
+      <code>GET /api/elevenlabs/health</code>.
+    </li>
+  </ul>
+
+  <h2>Outcome</h2>
+  <p>Gestures now act as a practical control surface for Harbor agents: fast input, explicit permissions, switchable local models, and integrated voice/multimodal execution.</p>
+</body>
+</html>
